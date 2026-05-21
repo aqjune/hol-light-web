@@ -1,0 +1,11 @@
+# Build artifacts.  Re-create with `make`.
+*.cmo
+*.cmi
+*.byte
+export.txt
+
+# Generated JS bundles (large; ~10–16 MB each).
+test_node.js
+hol_top_camlp5.js
+hol_top_browser.js
+hol_top_worker.js
