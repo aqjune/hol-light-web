@@ -11,6 +11,25 @@ The browser demo (`index.html` + `hol_top_worker.js`) loads HOL Light into a
 bootstrap, and stdout/stderr stream live to the page as Format buffers
 flush — same hook jsoo's own `lwt_toplevel` example uses.
 
+## Run it without building
+
+The `site/` directory in this repo is **pre-built and self-contained** —
+just serve it.  No opam, no `make`, no compiler:
+
+```sh
+python3 -m http.server -d site 8000
+# then open http://localhost:8000/
+```
+
+You only need the "Build" section below if you want to rebuild the bundle
+(e.g. you edited `hol_top_worker.ml` or want to bump the parent HOL Light
+version).
+
+The committed `site/` was built from
+[jrh13/hol-light @ 9b510bc](https://github.com/jrh13/hol-light/commit/9b510bc76da4cecf6e509be44d327c9236ec273f)
+("Bump python-multipart from 0.0.24 to 0.0.27 in /mcp", 2026-05-18).
+Whoever rebuilds `site/` should update this commit reference in the same PR.
+
 ## What's here
 
 ### Hand-written sources
@@ -30,14 +49,16 @@ git and are what you edit:
 
 ### Generated artefacts
 
-These are produced by `make` and are **not** in git (see `.gitignore`):
+These are produced by `make`.  Most are excluded from git (see `.gitignore`);
+the exception is `site/`, which is checked in pre-built so the demo runs
+without building anything (see "Run it without building" above).
 
-| Output | How it's produced |
-| --- | --- |
-| `*.cmo` / `*.cmi` / `*.byte` | `ocamlfind ocamlc` from the `.ml`s above plus the parent tree's `bignum.cmo`, `hol_loader.cmo`, `hol_lib.cmo`, and `pa_j.cmo`. |
-| `export.txt` | `jsoo_listunits` enumeration of the OCaml units the toplevel must keep around at runtime (so `JsooTop` can resolve identifiers in `Hol_lib`, `Stdlib`, `Zarith`, …). |
-| `test_node.js`, `hol_top_camlp5.js`, `hol_top_worker.js` | `js_of_ocaml --toplevel --export export.txt …` over the corresponding `.byte`.  The worker bundle additionally passes `--effects=cps` (see "How streaming works"). |
-| `site/` | `make site` (or `make all`, which now includes it) — `rsync` of the parent HOL Light tree minus excludes, plus `index.html` and `hol_top_worker.js` dropped at the root.  This is the directory you upload to GitHub Pages / Netlify. |
+| Output | In git? | How it's produced |
+| --- | --- | --- |
+| `*.cmo` / `*.cmi` / `*.byte` | no | `ocamlfind ocamlc` from the `.ml`s above plus the parent tree's `bignum.cmo`, `hol_loader.cmo`, `hol_lib.cmo`, and `pa_j.cmo`. |
+| `export.txt` | no | `jsoo_listunits` enumeration of the OCaml units the toplevel must keep around at runtime (so `JsooTop` can resolve identifiers in `Hol_lib`, `Stdlib`, `Zarith`, …). |
+| `test_node.js`, `hol_top_camlp5.js`, `hol_top_worker.js` (top-level copies) | no | `js_of_ocaml --toplevel --export export.txt …` over the corresponding `.byte`.  The worker bundle additionally passes `--effects=cps` (see "How streaming works"). |
+| `site/` | **yes** | `make site` (or `make all`, which now includes it) — `rsync` of the parent HOL Light tree minus excludes, plus `index.html` and `hol_top_worker.js` dropped at the root.  Re-running `make site` regenerates the directory in place; commit the diff alongside the parent-commit reference at the top of this README. |
 
 ## Build
 
@@ -75,7 +96,9 @@ Then, from this directory:
 | `make` / `make all` | Builds `test_node.js`, `hol_top_camlp5.js`, `hol_top_worker.js`, **and** mirrors the parent tree into `./site/` (see "Deploy"). |
 | `make serve` | Builds `site/` (so `loadt` resolves against the deployed tree) and starts `python3 -m http.server -d site 8000`.  Open <http://localhost:8000/> to use the demo. |
 | `make site` | Just the `site/` step — already covered by `make all`, but useful if you only want the deploy directory. |
-| `make clean` | Removes build artefacts (`*.cmo`, `*.cmi`, `*.byte`, `export.txt`), the generated JS bundles, and `site/`. |
+| `make clean` | Removes build artefacts (`*.cmo`, `*.cmi`, `*.byte`, `export.txt`) and the top-level JS bundles.  **Does not touch `site/`** — that's checked in. |
+| `make clean-site` | Removes `site/`.  After this you'll need `make site` (or just `make`) to recreate it. |
+| `make distclean` | `clean` + `clean-site`. |
 
 ## Try it
 
@@ -93,6 +116,15 @@ The page boots the Worker immediately and shows the kernel's bootstrap output
 (the `0..0..1..solved at N` lines) live in the terminal pane.  Once `* HOL-Light
 syntax in effect *` and the printer-install lines appear, the input is enabled
 and you can type phrases.
+
+> **Don't open `index.html` directly via `file://`.**  Browsers treat every
+> `file://` URL as a unique origin and refuse to construct a Web Worker from
+> one (`SecurityError: Failed to construct 'Worker': … cannot be accessed
+> from origin 'null'`).  Always serve the directory over HTTP — `make serve`
+> handles this, or run `python3 -m http.server -d site 8000` against an
+> already-built `site/` and open <http://localhost:8000/>.  Once deployed
+> to GitHub Pages / Netlify the constraint goes away because the page is
+> served over `https://`.
 
 ## Deploy
 

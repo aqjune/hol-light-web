@@ -141,9 +141,16 @@ site: hol_top_worker.js index.html
 	@echo "site/ ready ($$(du -sh $(SITE_DIR) | cut -f1)).  Try:"
 	@echo "    python3 -m http.server -d $(SITE_DIR) 8000"
 
+# `clean` deliberately does NOT remove site/ — it's checked in so a fresh
+# clone can serve the demo without a build.  Use `clean-site` if you really
+# want a full wipe.
 clean:
 	rm -f *.cmo *.cmi *.byte export.txt
 	rm -f test_node.js hol_top_camlp5.js hol_top_worker.js
+
+clean-site:
 	rm -rf $(SITE_DIR)
 
-.PHONY: all serve site clean
+distclean: clean clean-site
+
+.PHONY: all serve site clean clean-site distclean

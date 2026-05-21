@@ -25,7 +25,7 @@ jobs:
       - name: Install opam
         run: |
           sudo apt-get update
-          sudo apt-get install -y opam
+          sudo apt-get install -y opam xdot
           opam init --disable-sandboxing --bare -n
 
       # The Web/ Makefile expects the parent HOL Light tree at `..`.
