@@ -23,3 +23,43 @@
    | _ -> None;;
  
  (* Execute any OCaml expression given as a string. *)
+@@ -49,8 +57,14 @@
+     None -> Longident.Lident id
+   | Some li -> Longident.Ldot({ txt = li; loc = Location.none }, idloc)
+ 
++(* Names starting with `_` are HOL Light internal scaffolding
++   (e.g. `_UNGUARDED_PATTERN`, `_SEQPATTERN`, `_MATCH`).  They have
++   type `thm` but are not meaningful search results, and feeding them
++   back through `Ocaml_typing.eval` raises Env.Unbound_constructor
++   under camlp5 (which parses `Module._UPPER` as a constructor). *)
+ let it_val_1 lidopt s p vd acc =
+-  if (Some "thm") = Ocaml_typing.get_simple_type (get_desc vd.Types.val_type) then
++  if String.length s > 0 && s.[0] = '_' then acc
++  else if (Some "thm") = Ocaml_typing.get_simple_type (get_desc vd.Types.val_type) then
+     (lid_cons lidopt s)::acc else acc
+ 
+ let it_mod_1 lidopt s p md acc = (lid_cons lidopt s)::acc
+@@ -81,12 +95,17 @@
+ 
+ let all_theorems () =
+   let _ = Ocaml_typing.exec ("unset_jrh_lexer;;") in
+-  let res = enum1 None []
+-    |> List.map (fun lid ->
+-        let s = string_of_longident lid in
+-        (s, (Ocaml_typing.eval s : thm))) in
+-  let _ = Ocaml_typing.exec ("set_jrh_lexer;;") in
+-  res
++  (* Re-enable jrh_lexer no matter how the walk exits, so a stray
++     exception doesn't leave camlp5's HOL syntax extension off — that
++     would cause every subsequent uppercase identifier (ARITH_TAC,
++     MESON_TAC, ...) to be parsed as an OCaml constructor and fail. *)
++  Fun.protect
++    ~finally:(fun () -> ignore (Ocaml_typing.exec "set_jrh_lexer;;"))
++    (fun () ->
++       enum1 None []
++       |> List.map (fun lid ->
++           let s = string_of_longident lid in
++           (s, (Ocaml_typing.eval s : thm))))
+ end
+ 
+ 
