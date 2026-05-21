@@ -121,32 +121,31 @@ let install_printers () =
 
 (* Wire HOL Light's [file_loader] hook to the jsoo toplevel so loads/loadt/
    needs evaluate fetched .ml files through the same execute path the REPL
-   uses.  This goes through the toplevel rather than our own parser, so
-   camlp5's backquote syntax extension is in effect for loaded files. *)
-let bootstrap_loader =
-  String.concat "\n" [
-    (* Make $ resolve to the deploy root.  The default load_path is
-       ["."; "$"], so loadt "Library/foo.ml" will try "./Library/foo.ml"
-       and "/Library/foo.ml" — the second one hits our XHR mount. *)
-    "Hol_loader.hol_dir := \"/\";;";
-    (* Read a .ml file off the pseudo-FS and feed it to JsooTop.use, which
-       runs each ;;-terminated phrase through the toplevel just like the
-       REPL.  Returns true on success, false on error (mirrors the
-       Toploop.use_file contract). *)
-    "Hol_loader.file_loader := (fun fname ->";
-    "  let ic = open_in fname in";
-    "  let n = in_channel_length ic in";
-    "  let buf = Bytes.create n in";
-    "  really_input ic buf 0 n;";
-    "  close_in ic;";
-    "  Js_of_ocaml_toplevel.JsooTop.use Format.std_formatter";
-    "    (Bytes.unsafe_to_string buf));;"
-  ]
+   uses.  We set the ref directly from OCaml (rather than feeding a phrase
+   through `exec`) because the runtime toplevel only resolves names listed
+   in export.txt — embedding `Js_of_ocaml_toplevel.JsooTop.use` in a string
+   that goes through the toplevel raises "Unbound value …".  Compiled
+   OCaml has no such restriction; JsooTop is already linked into the
+   bundle and `JsooTop.use` runs each ;;-terminated phrase through the
+   same camlp5-equipped toplevel as the REPL. *)
+let install_file_loader () =
+  (* Make $ resolve to the deploy root.  The default load_path is
+     ["."; "$"], so loadt "Library/foo.ml" tries "./Library/foo.ml" and
+     "/Library/foo.ml" — the second one hits our XHR mount. *)
+  Hol_loader.hol_dir := "/";
+  Hol_loader.file_loader := (fun fname ->
+    let ic = open_in fname in
+    let n = in_channel_length ic in
+    let buf = Bytes.create n in
+    really_input ic buf 0 n;
+    close_in ic;
+    Js_of_ocaml_toplevel.JsooTop.use Format.std_formatter
+      (Bytes.unsafe_to_string buf))
 
 let () =
   exec "open Hol_lib;;";
   install_printers ();
-  exec bootstrap_loader;
+  install_file_loader ();
   post_tag "ready"
 
 (* ---- 4. Main loop. *)
@@ -164,6 +163,7 @@ let () =
         Js_of_ocaml_toplevel.JsooTop.initialize ();
         exec "open Hol_lib;;";
         install_printers ();
+        install_file_loader ();
         post_tag "ready"
     | other ->
         post_chunk "stderr"
