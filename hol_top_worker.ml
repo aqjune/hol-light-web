@@ -34,11 +34,14 @@ let () = Sys_js.mount ~path:"/dev/" (fun ~prefix:_ ~path:_ -> None)
 
 (* ---- 1b. HOL filesystem: synchronous fetch from same origin.
 
-   `make site` deploys the parent HOL Light tree at the site root, so a
-   request for "/Library/words.ml" resolves to <origin>/Library/words.ml.
-   Sync XHR is allowed inside Web Workers (it's only forbidden on the main
-   thread), so loadt's expectation of synchronous Sys.file_exists/open_in
-   is satisfiable.
+   `make site` deploys the parent HOL Light tree alongside this worker
+   script, so a relative request "Library/words.ml" resolves against
+   the worker's own URL (self.location.href).  That works whether the
+   site is served from the host root (e.g. <origin>/) or a subpath
+   (e.g. <origin>/hol-light-web/, which is how GitHub Pages deploys
+   project sites).  Sync XHR is allowed inside Web Workers (it's only
+   forbidden on the main thread), so loadt's expectation of synchronous
+   Sys.file_exists/open_in is satisfiable.
 
    Once a file is fetched, jsoo caches it in its in-memory FS — so
    Digest.file works (loaded_files de-dup) and re-loadt is a no-op. *)
@@ -67,8 +70,10 @@ let http_fetch_sync url =
 
 let hol_fs_handler ~prefix:_ ~path =
   (* path is the part after the mount prefix, e.g. "Library/words.ml".
-     Map it back to the deploy root over HTTP. *)
-  http_fetch_sync ("/" ^ path)
+     Pass it as a relative URL so the XHR resolves against the worker's
+     own location — which is the deploy root regardless of whether the
+     site is hosted at <origin>/ or <origin>/some-subpath/. *)
+  http_fetch_sync path
 
 (* Mount the deploy root at /hol/ rather than /.  jsoo's runtime already
    registers a default device at "/" during startup; a second mount at
