@@ -132,19 +132,30 @@ SITE_EXCLUDES := \
   --exclude=.gitignore     --exclude=.gitattributes                          \
   --exclude=.github/
 
-site: hol_top_worker.js index.html
+site: hol_top_worker.js index.html patches/help.ml.patch patches/update_database.ml.patch
 	rm -rf $(SITE_DIR)
 	mkdir -p $(SITE_DIR)
 	# 1. Mirror the parent HOL Light tree (just .ml/.hl/etc. — see SITE_EXCLUDES).
 	rsync -a --delete $(SITE_EXCLUDES) $(HOL)/ $(SITE_DIR)/
-	# 2. Drop the Web/ outputs at the site root so index.html is the entrypoint.
+	# 2. Apply jsoo-specific patches.  Each patch adds a small hook (a ref)
+	#    to upstream so this directory's overrides can be tiny — the heavy
+	#    lifting stays in the parent tree.  -F0 disables fuzz so ANY drift
+	#    in surrounding context fails the build; that's the whole point —
+	#    we want to be told when an upstream edit lands near our hooks.
+	for p in patches/*.patch; do \
+	  echo "Applying $$p"; \
+	  patch -p1 -d $(SITE_DIR) --forward --no-backup-if-mismatch -F0 < $$p \
+	    || { echo "PATCH FAILED: $$p — upstream likely changed near a hook."; \
+	         echo "  Re-run: cp $(HOL)/$${p#patches/}.orig (or refresh from $(HOL)) and regenerate $$p."; \
+	         exit 1; }; \
+	done
+	# 3. Drop the Web/ outputs at the site root so index.html is the entrypoint.
 	#    pcre2_stubs.js is linked into hol_top_worker.js at build time, not
 	#    loaded by the page, so it isn't deployed.
 	cp index.html hol_top_worker.js $(SITE_DIR)/
-	# 3. Pre-compute Help/index.txt — a newline-separated list of every
+	# 4. Pre-compute Help/index.txt — a newline-separated list of every
 	#    .hlp basename.  The browser can't enumerate directories over HTTP,
-	#    so help.ml's Sys.readdir is replaced (in hol_top_worker.ml's boot
-	#    script) by reading this file.
+	#    so help.ml's [help_listing] hook (installed at boot) reads this file.
 	(cd $(SITE_DIR)/Help && ls *.hlp | sed 's/\.hlp$$//') > $(SITE_DIR)/Help/index.txt
 	@echo
 	@echo "site/ ready ($$(du -sh $(SITE_DIR) | cut -f1)).  Try:"

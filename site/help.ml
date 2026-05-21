@@ -13,6 +13,23 @@
 
 let help_path = ref ["$/Help"];;
 
+(* Hooks so environments without Sys.readdir/Sys.command (e.g. js_of_ocaml
+   in the browser) can supply their own listing and renderer.  The
+   defaults below replicate the standalone hol.sh behaviour. *)
+
+let help_listing = ref (fun () ->
+  let true_path = map hol_expand_directory (!help_path) in
+  itlist (fun a l ->
+    map (fun s -> String.sub s 0 (String.length s - 4))
+        (Array.to_list (Sys.readdir a)) @ l)
+    true_path []);;
+
+let help_render = ref (fun fn ->
+  let true_path = map hol_expand_directory (!help_path) in
+  let file = file_on_path true_path fn
+  and script = file_on_path [!hol_dir] "doc-to-help.sed" in
+  ignore (Sys.command ("sed -f " ^ script ^ " " ^ file)));;
+
 let help s =
   let funny_filenames =
    ["++", ".joinparsers";
@@ -40,10 +57,7 @@ let help s =
     "MK_EXISTS", "MK_EXISTS_UPPERCASE";
     "MK_FORALL", "MK_FORALL_UPPERCASE";
     "REPEAT", "REPEAT_UPPERCASE"] in
-  let true_path = map hol_expand_directory (!help_path) in
-  let raw_listing =
-    map (fun s -> String.sub s 0 (String.length s - 4))
-        (itlist (fun a l -> Array.to_list (Sys.readdir a) @ l) true_path []) in
+  let raw_listing = !help_listing () in
   let mod_listing =
     map fst funny_filenames @
     subtract raw_listing (map snd funny_filenames) in
@@ -71,10 +85,7 @@ let help s =
    "-------------------------------------------------------------------\n";
   Format.print_flush();
   (if mem s mod_listing then
-    let fn = assocd s funny_filenames s ^".hlp" in
-    let file = file_on_path true_path fn
-    and script = file_on_path [!hol_dir] "doc-to-help.sed" in
-    ignore(Sys.command("sed -f "^script^" "^file))
+    !help_render (assocd s funny_filenames s ^ ".hlp")
    else
     let guesses = map
      (fun s -> "help \""^String.escaped s^"\";;\n") (guess s) in

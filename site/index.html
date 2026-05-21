@@ -154,7 +154,7 @@
     <ul id="examples">
       <li data-code="let tm = `x + 1 = 1 + x`;;">A simple term</li>
       <li data-code="let th = prove (`(x + 2) * y = x * y + 2 * y`, ARITH_TAC);;">Prove with ARITH_TAC</li>
-      <li data-code="g `?x. x + 2 = 5`;;
+      <li data-code="g `exists x. x + 2 = 5`;;
 e (EXISTS_TAC `3`);;
 e ARITH_TAC;;
 let mythm = top_thm();;">Goal stack: existential</li>
@@ -165,12 +165,8 @@ let mythm = top_thm();;">Goal stack: existential</li>
   (a * x + a * y + b * x) EXP 3 + (b * y) EXP 3 +
   (a * y + b * y + b * x) EXP 3 + (a * x) EXP 3`;;">A nonlinear arithmetic identity</li>
       <li data-code="prove
- (`!n. nsum(1..n) (\i. i) = (n * (n + 1)) DIV 2`,
+ (`forall n. nsum(1..n) (\i. i) = (n * (n + 1)) DIV 2`,
   INDUCT_TAC THEN ASM_REWRITE_TAC[NSUM_CLAUSES_NUMSEG] THEN ARITH_TAC);;">Sum 1..n by induction</li>
-      <li data-code="prove
- (`!n. EVEN(n * (n + 1))`,
-  INDUCT_TAC THEN REWRITE_TAC[MULT_CLAUSES; EVEN_ADD; EVEN_MULT; ARITH] THEN
-  ASM_CASES_TAC `EVEN n` THEN ASM_REWRITE_TAC[]);;">n*(n+1) is even</li>
       <li data-code="needs &quot;Library/prime.ml&quot;;;
 prove (`prime 17`, CONV_TAC PRIME_CONV);;">loadt + prime test (slow)</li>
       <li data-code="let golden = new_definition
@@ -186,8 +182,6 @@ let size = define
    (size (Node l r) = 1 + size l + size r)`;;
 REWRITE_CONV[size; ARITH]
   `size (Node (Leaf 1) (Node (Leaf 2) (Leaf 3)))`;;">Define a new type: binary tree</li>
-      <li data-code="MULT_SYM;;
-ADD_AC;;">Look up theorems</li>
       <li data-code="search [`x + y = y + x`];;">search</li>
       <li data-code="help &quot;ARITH_TAC&quot;;;">help</li>
     </ul>

@@ -46,7 +46,31 @@ git and are what you edit:
 | `test_node.ml` | Smallest-possible bundle: a single `prove` call with no REPL.  Useful as a minimum-working-example. |
 | `index.html` | REPL UI: dark-theme two-pane layout, `↑/↓` history backed by `localStorage`, `Ctrl+L` clear, `Ctrl+K` reset, ANSI-color rendering of HOL Light's colored printers.  Modelled on jsoo's `lwt_toplevel/index.html`. |
 | `pcre2_stubs.js` | No-op JS stubs for camlp5's pcre2 dependency (HOL Light never exercises it).  Linked into the worker bundle at build time. |
+| `patches/*.patch` | Tiny unified diffs applied to the deployed `site/`'s copy of upstream files.  Each patch adds a hook (a `ref` callback) so jsoo-specific behaviour can be injected without forking the upstream file.  `make site` applies them with `patch -F0 --forward`; ANY drift in surrounding context fails the build, so we notice when an upstream edit lands near a hook. |
 | `Makefile`, `README.md`, `.gitignore` | Build glue, this file, and what to keep out of git. |
+
+#### Current patches
+
+| Patch | Hook it adds | Why |
+| --- | --- | --- |
+| `patches/help.ml.patch` | `help_listing` and `help_render` refs | Upstream `help` calls `Sys.readdir` (no directory enumeration over HTTP) and `Sys.command "sed -f doc-to-help.sed"` (no shell under jsoo).  The worker installs hooks that read a pre-computed `Help/index.txt` and apply a minimal OCaml port of doc-to-help.sed. |
+| `patches/update_database.ml.patch` | broadens `get_simple_type`'s `Path` match | Upstream only matches `Path.Pident`, so under `HOLLIGHT_USE_MODULE=1` (where the theorem type's path is `Path.Pdot (Pident "Hol_lib", "thm")`) the env-walker finds zero theorems and `search` returns nothing.  The patch checks `Path.last`-style names so both `Pident` and `Pdot` work. |
+
+#### Refreshing a patch after upstream churn
+
+If `make site` reports `PATCH FAILED: patches/foo.ml.patch`:
+
+```sh
+# 1. Mirror the latest parent file untouched, then apply the old patch
+#    by hand, fix any rejects, and regenerate the .patch file.
+cp ../foo.ml /tmp/foo.ml.orig
+cp /tmp/foo.ml.orig /tmp/foo.ml.new
+# ... edit /tmp/foo.ml.new to re-introduce the hook ...
+diff -u /tmp/foo.ml.orig /tmp/foo.ml.new \
+  | sed 's|/tmp/foo.ml.orig|a/foo.ml|; s|/tmp/foo.ml.new|b/foo.ml|' \
+  > patches/foo.ml.patch
+make site   # should now apply cleanly
+```
 
 ### Generated artefacts
 

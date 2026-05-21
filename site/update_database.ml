@@ -16,12 +16,20 @@ open Types
 
 (* If the given type is simple return its name, otherwise None. *)
 
+(* Match the type's bare name regardless of whether it's defined at
+   toplevel (Pident, e.g. plain hol.sh) or inside a module (Pdot, e.g.
+   HOLLIGHT_USE_MODULE=1 puts `thm` at `Hol_lib.thm`). *)
+let path_last_name = function
+  | Path.Pident p -> Ident.name p
+  | Path.Pdot (_, s) -> s
+  | _ -> "";;
+
 let rec get_simple_type = function
   | Tlink texpr ->
     (match get_desc texpr with
-    | Tconstr (Pident p,[],_) -> Some (Ident.name p)
+    | Tconstr (p, [], _) -> Some (path_last_name p)
     | d -> get_simple_type d)
-  | Tconstr (Path.Pident p,  [], _) -> Some (Ident.name p)
+  | Tconstr (p, [], _) -> Some (path_last_name p)
   | _ -> None;;
 
 (* Execute any OCaml expression given as a string. *)
