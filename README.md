@@ -28,7 +28,8 @@ version).
 The committed `site/` was built from
 [jrh13/hol-light @ 9b510bc](https://github.com/jrh13/hol-light/commit/9b510bc76da4cecf6e509be44d327c9236ec273f)
 ("Bump python-multipart from 0.0.24 to 0.0.27 in /mcp", 2026-05-18).
-Whoever rebuilds `site/` should update this commit reference in the same PR.
+Whoever rebuilds `site/` should update this reference **here** and in the
+sidebar link in `index.html` (search for "Built from" to find it).
 
 ## What's here
 

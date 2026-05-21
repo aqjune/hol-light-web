@@ -16,12 +16,17 @@
     font-size: 14px;
     overflow: hidden;
   }
+  /* Stack the two main panes (#wrapper) above the status bar so the bar
+     never floats over the terminal's last line. */
+  body { display: flex; flex-direction: column; }
   code, kbd, pre, samp, textarea {
     font-family: "SF Mono", "Fira Code", Consolas, monospace;
   }
 
-  /* Two-pane layout, modelled on jsoo's lwt_toplevel demo. */
-  #wrapper { display: flex; height: 100%; }
+  /* Two-pane layout, modelled on jsoo's lwt_toplevel demo.  flex:1 inside
+     the body's column flexbox makes the wrapper consume all space above
+     the status bar (which is the body's other child). */
+  #wrapper { display: flex; flex: 1 1 auto; min-height: 0; }
 
   #term {
     flex: 1 1 70%;
@@ -72,6 +77,8 @@
   }
   #side h3 { margin: 0 0 4px; font-weight: 600; color: #eee; font-size: 1.4em; }
   #side .subtitle { margin: 0; color: #888; font-size: 0.95em; }
+  #side .subtitle a { color: #61afef; text-decoration: none; }
+  #side .subtitle a:hover { text-decoration: underline; }
   #side h4 { color: #aaa; font-weight: 500; font-size: 1em; margin: 1.4em 0 0.5em; }
   #side p { color: #999; line-height: 1.55; margin: 0.5em 0; }
   #side ul { padding-left: 1.2em; }
@@ -89,7 +96,7 @@
   #handle:hover, #handle.dragging { background: rgba(255,255,255,0.12); }
 
   #status-bar {
-    position: fixed; bottom: 0; left: 0; right: 0;
+    flex: 0 0 auto;
     padding: 4px 10px; font-size: 12px;
     background: #2a2a2a; color: #aaa;
     border-top: 1px solid rgba(255,255,255,0.08);
@@ -127,7 +134,11 @@
   <div id="side">
     <div class="sidebar-header">
       <h3>HOL Light</h3>
-      <p class="subtitle">Higher-order logic theorem prover, in your browser.</p>
+      <p class="subtitle">
+        Built from
+        <a href="https://github.com/jrh13/hol-light/commit/9b510bc76da4cecf6e509be44d327c9236ec273f"
+           target="_blank" rel="noopener">jrh13/hol-light @ 9b510bc</a>.
+      </p>
     </div>
     <h4>Keyboard shortcuts</h4>
     <table>
@@ -151,11 +162,6 @@ let mythm = top_thm();;">Goal stack: existential</li>
 ADD_AC;;">Look up theorems</li>
       <li data-code="search [`x + y = y + x`];;">search</li>
     </ul>
-    <h4>Notes</h4>
-    <p>The kernel runs in a Web Worker so the UI stays responsive while it
-       boots (~1–2 minutes on first load) and during long proofs.</p>
-    <p>Output streams as Format buffers flush, so you'll see HOL Light's
-       <code>solved at N</code> bootstrap messages live.</p>
   </div>
 </div>
 <div id="status-bar">Spawning Web Worker…</div>

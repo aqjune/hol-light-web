@@ -66,14 +66,18 @@ let http_fetch_sync url =
   else None
 
 let hol_fs_handler ~prefix:_ ~path =
-  (* path is the part after the mount prefix, e.g. "Library/words.ml". *)
+  (* path is the part after the mount prefix, e.g. "Library/words.ml".
+     Map it back to the deploy root over HTTP. *)
   http_fetch_sync ("/" ^ path)
 
-(* Mount the deploy root so Sys.file_exists/open_in for "/Library/foo.ml"
-   triggers an XHR fetch.  The HOL Light load_path includes "$" which we
-   point at "/" below, so loadt "Library/foo.ml" will scan ["."; "/"] and
-   find the file. *)
-let () = Sys_js.mount ~path:"/" hol_fs_handler
+(* Mount the deploy root at /hol/ rather than /.  jsoo's runtime already
+   registers a default device at "/" during startup; a second mount at
+   the same path is silently shadowed by the first (resolve_fs_device in
+   fs.js prefers the earlier registration on equal-length prefixes), so
+   Sys.file_exists "/meson.ml" would never reach our handler.  Mounting
+   at /hol/ sidesteps the conflict; we then point HOL Light's $ at /hol
+   so loadt's expansion `$/foo.ml` -> `/hol/foo.ml` lands on our device. *)
+let () = Sys_js.mount ~path:"/hol/" hol_fs_handler
 
 let sharp_chan = open_out "/dev/sharp"
 let caml_chan  = open_out "/dev/caml"
@@ -129,10 +133,11 @@ let install_printers () =
    bundle and `JsooTop.use` runs each ;;-terminated phrase through the
    same camlp5-equipped toplevel as the REPL. *)
 let install_file_loader () =
-  (* Make $ resolve to the deploy root.  The default load_path is
-     ["."; "$"], so loadt "Library/foo.ml" tries "./Library/foo.ml" and
-     "/Library/foo.ml" — the second one hits our XHR mount. *)
-  Hol_loader.hol_dir := "/";
+  (* Point $ at our /hol/ mount.  The default load_path is ["."; "$"],
+     so loadt "Library/foo.ml" tries "./Library/foo.ml" (which fails,
+     since the worker's cwd is the default fs root with nothing there)
+     and "/hol/Library/foo.ml" — the latter hits our XHR mount. *)
+  Hol_loader.hol_dir := "/hol";
   Hol_loader.file_loader := (fun fname ->
     let ic = open_in fname in
     let n = in_channel_length ic in
@@ -143,7 +148,10 @@ let install_file_loader () =
       (Bytes.unsafe_to_string buf))
 
 let () =
+  (* `loadt`/`loads`/`needs` live in Hol_loader, not Hol_lib — open both
+     so they're reachable bare from the REPL like in plain hol.sh. *)
   exec "open Hol_lib;;";
+  exec "open Hol_loader;;";
   install_printers ();
   install_file_loader ();
   post_tag "ready"
@@ -162,6 +170,7 @@ let () =
     | "reset" ->
         Js_of_ocaml_toplevel.JsooTop.initialize ();
         exec "open Hol_lib;;";
+        exec "open Hol_loader;;";
         install_printers ();
         install_file_loader ();
         post_tag "ready"
