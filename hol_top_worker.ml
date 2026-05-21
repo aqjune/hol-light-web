@@ -147,6 +147,113 @@ let install_file_loader () =
     Js_of_ocaml_toplevel.JsooTop.use Format.std_formatter
       (Bytes.unsafe_to_string buf))
 
+(* Override `help` after loading help.ml.  The upstream `help` calls
+   Sys.readdir on Help/ (HTTP can't enumerate directories — we serve a
+   pre-computed Help/index.txt instead) and then shells out to
+   `sed -f doc-to-help.sed` (no shell under jsoo).  This replacement
+   reads the pre-computed listing for fuzzy match, fetches the .hlp
+   file directly, and applies a minimal subset of the sed transforms
+   in OCaml.  Same external behaviour as `hol.sh`'s `help "type_of"`. *)
+let help_override = {ocaml|
+let _web_read_file fn =
+  let ic = open_in fn in
+  let n = in_channel_length ic in
+  let buf = Bytes.create n in
+  really_input ic buf 0 n;
+  close_in ic;
+  Bytes.unsafe_to_string buf;;
+
+let _web_help_listing () =
+  let s = _web_read_file (Hol_loader.hol_expand_directory "$/Help/index.txt") in
+  String.split_on_char '\n' s
+  |> List.filter (fun l -> l <> "");;
+
+(* Minimal OCaml port of doc-to-help.sed: enough to make the .hlp files
+   readable in a terminal pane, not bit-identical to the sed output. *)
+let _web_format_hlp text =
+  let lines = String.split_on_char '\n' text in
+  let buf = Buffer.create (String.length text) in
+  let drop_until_blank = ref false in
+  let rename_section l = match l with
+    | "\\SYNOPSIS"   -> Some "SYNOPSIS"
+    | "\\CATEGORIES" -> Some "CATEGORIES"
+    | "\\DESCRIBE"   -> Some "DESCRIPTION"
+    | "\\FAILURE"    -> Some "FAILURE CONDITIONS"
+    | "\\EXAMPLE"    -> Some "EXAMPLES"
+    | "\\USES"       -> Some "USES"
+    | "\\COMMENTS"   -> Some "COMMENTS"
+    | "\\SEEALSO"    -> Some "SEE ALSO"
+    | _ -> None in
+  let starts s prefix =
+    String.length s >= String.length prefix
+    && String.sub s 0 (String.length prefix) = prefix in
+  let strip_braces s =
+    let b = Buffer.create (String.length s) in
+    String.iter (fun c -> if c <> '{' && c <> '}' then Buffer.add_char b c) s;
+    Buffer.contents b in
+  List.iter (fun raw ->
+    if !drop_until_blank then
+      (if String.trim raw = "" then drop_until_blank := false)
+    else if starts raw "\\KEYWORDS" || starts raw "\\LIBRARY" then
+      drop_until_blank := true
+    else if starts raw "\\DOC" || starts raw "\\BLTYPE"
+         || starts raw "\\ELTYPE" || starts raw "\\ENDDOC" then
+      ()
+    else if starts raw "\\TYPE" then
+      let rest = String.sub raw 5 (String.length raw - 5) in
+      Buffer.add_string buf (strip_braces (String.trim rest));
+      Buffer.add_char buf '\n'
+    else match rename_section (String.trim raw) with
+      | Some name ->
+          Buffer.add_string buf name;
+          Buffer.add_string buf "\n\n"
+      | None ->
+          Buffer.add_string buf (strip_braces raw);
+          Buffer.add_char buf '\n'
+  ) lines;
+  Buffer.contents buf;;
+
+let help s =
+  let listing = _web_help_listing () in
+  let edit_distance s1 s2 =
+    let l1 = String.length s1 and l2 = String.length s2 in
+    let a = Array.make_matrix (l1 + 1) (l2 + 1) 0 in
+    for i = 1 to l1 do a.(i).(0) <- i done;
+    for j = 1 to l2 do a.(0).(j) <- j done;
+    for i = 1 to l1 do for j = 1 to l2 do
+      let cost = if s1.[i-1] = s2.[j-1] then 0 else 1 in
+      a.(i).(j) <- min (min (a.(i-1).(j) + 1) (a.(i).(j-1) + 1))
+                       (a.(i-1).(j-1) + cost)
+    done done;
+    a.(l1).(l2) in
+  Format.print_string
+    "-------------------------------------------------------------------\n";
+  Format.print_flush ();
+  if List.mem s listing then begin
+    let path = Hol_loader.hol_expand_directory ("$/Help/" ^ s ^ ".hlp") in
+    Format.print_string (_web_format_hlp (_web_read_file path))
+  end else begin
+    let scored =
+      List.map (fun s' ->
+        let su  = String.uppercase_ascii s
+        and s'u = String.uppercase_ascii s' in
+        s', 2.0 *. float_of_int (edit_distance su s'u)
+            /. float_of_int (String.length s + String.length s')) listing in
+    let scored = List.sort (fun (_,a) (_,b) -> compare a b) scored in
+    let rec take n = function
+      | _ when n = 0 -> []
+      | [] -> []
+      | x :: xs -> x :: take (n - 1) xs in
+    Format.print_string ("No help found for \"" ^ s ^ "\"; did you mean:\n\n");
+    List.iter (fun (g, _) ->
+      Format.print_string ("help \"" ^ g ^ "\";;\n")) (take 3 scored);
+    Format.print_string "\n?\n"
+  end;
+  Format.print_string
+    "--------------------------------------------------------------------\n";
+  Format.print_flush ();;
+|ocaml}
+
 let () =
   (* `loadt`/`loads`/`needs` live in Hol_loader, not Hol_lib — open both
      so they're reachable bare from the REPL like in plain hol.sh. *)
@@ -154,6 +261,12 @@ let () =
   exec "open Hol_loader;;";
   install_printers ();
   install_file_loader ();
+  (* Auto-load help.ml and update_database.ml so search/help "just work"
+     out of the box, as in hol.sh.  Order: help.ml first, then our
+     override (which redefines `help`), then update_database.ml. *)
+  exec "loadt \"help.ml\";;";
+  exec help_override;
+  exec "loadt \"update_database.ml\";;";
   post_tag "ready"
 
 (* ---- 4. Main loop. *)
@@ -173,6 +286,9 @@ let () =
         exec "open Hol_loader;;";
         install_printers ();
         install_file_loader ();
+        exec "loadt \"help.ml\";;";
+        exec help_override;
+        exec "loadt \"update_database.ml\";;";
         post_tag "ready"
     | other ->
         post_chunk "stderr"

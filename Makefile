@@ -108,7 +108,7 @@ SITE_EXCLUDES := \
   --exclude=/TacticTrace/  --exclude=/UnitTests/    --exclude=/Proofrecording/ \
   --exclude=/ProofTrace/   --exclude=/Minisat/      --exclude=/Cadical/      \
   --exclude=/mcp/          --exclude=/pa_j/                                  \
-  --exclude=/update_database/  --exclude=/update_database.ml                 \
+  --exclude=/update_database/                                                \
   --exclude=/pa_j.ml                                                         \
   --exclude=/hol.ml        --exclude=/hol_lib.ml                             \
   --exclude=/hol_lib_use_module.ml                                           \
@@ -137,6 +137,11 @@ site: hol_top_worker.js index.html
 	#    pcre2_stubs.js is linked into hol_top_worker.js at build time, not
 	#    loaded by the page, so it isn't deployed.
 	cp index.html hol_top_worker.js $(SITE_DIR)/
+	# 3. Pre-compute Help/index.txt — a newline-separated list of every
+	#    .hlp basename.  The browser can't enumerate directories over HTTP,
+	#    so help.ml's Sys.readdir is replaced (in hol_top_worker.ml's boot
+	#    script) by reading this file.
+	(cd $(SITE_DIR)/Help && ls *.hlp | sed 's/\.hlp$$//') > $(SITE_DIR)/Help/index.txt
 	@echo
 	@echo "site/ ready ($$(du -sh $(SITE_DIR) | cut -f1)).  Try:"
 	@echo "    python3 -m http.server -d $(SITE_DIR) 8000"
