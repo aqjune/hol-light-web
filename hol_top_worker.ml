@@ -229,14 +229,16 @@ let () =
   exec "open Hol_loader;;";
   install_printers ();
   install_file_loader ();
-  (* Auto-load help.ml and update_database.ml so search/help "just work"
-     out of the box, as in hol.sh.  The deployed copies are patched (see
-     patches/) so help_listing/help_render are hooks and update_database
-     handles HOLLIGHT_USE_MODULE=1's Pdot-paths.  After loadt we just
-     install the jsoo-specific listing/renderer. *)
+  (* Auto-load help.ml so help "just works" out of the box.  The deployed
+     copy is patched (see patches/help.ml.patch) so help_listing/help_render
+     are hooks; after loadt we install the jsoo-specific listing/renderer.
+     update_database.ml is intentionally *not* loaded — under
+     HOLLIGHT_USE_MODULE=1 the env walker would either miss every theorem
+     or, with the typechecked-eval fallback, take so long that `search`
+     becomes effectively unusable.  Users who want it can `loadt` it
+     themselves. *)
   exec "loadt \"help.ml\";;";
   exec help_override;
-  exec "loadt \"update_database.ml\";;";
   post_tag "ready"
 
 (* ---- 4. Main loop. *)
@@ -258,7 +260,6 @@ let () =
         install_file_loader ();
         exec "loadt \"help.ml\";;";
         exec help_override;
-        exec "loadt \"update_database.ml\";;";
         post_tag "ready"
     | other ->
         post_chunk "stderr"

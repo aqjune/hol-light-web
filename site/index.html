@@ -181,7 +181,6 @@ let size = define
    (size (Node l r) = 1 + size l + size r)`;;
 REWRITE_CONV[size; ARITH]
   `size (Node (Leaf 1) (Node (Leaf 2) (Leaf 3)))`;;">Define a new type: binary tree</li>
-      <li data-code="search [`x + y = y + x`];;">search</li>
       <li data-code="help &quot;ARITH_TAC&quot;;;">help</li>
     </ul>
     <h4>Heads up</h4>
@@ -190,6 +189,12 @@ REWRITE_CONV[size; ARITH]
     cancelled.  <kbd>Ctrl+K</kbd> wipes the toplevel and re-boots
     the kernel from scratch (~1–2 min), so use it only as a last
     resort.</p>
+    <p>The <code>search</code> command is not available here:
+    <code>update_database.ml</code> is intentionally not shipped
+    with this build (so <code>loadt&nbsp;"update_database.ml";;</code>
+    will fail with a file-not-found).  It walks every theorem name
+    through the typechecker, which takes minutes under jsoo and
+    makes <code>search</code> impractical in the browser.</p>
   </div>
 </div>
 <div id="status-bar">Spawning Web Worker…</div>

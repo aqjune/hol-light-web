@@ -114,6 +114,7 @@ SITE_EXCLUDES := \
   --exclude=/mcp/          --exclude=/pa_j/                                  \
   --exclude=/update_database/                                                \
   --exclude=/pa_j.ml                                                         \
+  --exclude=/update_database.ml                                              \
   --exclude=/hol.ml        --exclude=/hol_lib.ml                             \
   --exclude=/hol_lib_use_module.ml                                           \
   --exclude=/load_camlp*.ml                                                  \
@@ -132,7 +133,7 @@ SITE_EXCLUDES := \
   --exclude=.gitignore     --exclude=.gitattributes                          \
   --exclude=.github/
 
-site: hol_top_worker.js index.html patches/help.ml.patch patches/update_database.ml.patch
+site: hol_top_worker.js index.html patches/help.ml.patch
 	rm -rf $(SITE_DIR)
 	mkdir -p $(SITE_DIR)
 	# 1. Mirror the parent HOL Light tree (just .ml/.hl/etc. — see SITE_EXCLUDES).

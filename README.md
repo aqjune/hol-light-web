@@ -54,7 +54,12 @@ git and are what you edit:
 | Patch | Hook it adds | Why |
 | --- | --- | --- |
 | `patches/help.ml.patch` | `help_listing` and `help_render` refs | Upstream `help` calls `Sys.readdir` (no directory enumeration over HTTP) and `Sys.command "sed -f doc-to-help.sed"` (no shell under jsoo).  The worker installs hooks that read a pre-computed `Help/index.txt` and apply a minimal OCaml port of doc-to-help.sed. |
-| `patches/update_database.ml.patch` | broadens `get_simple_type`'s `Path` match | Upstream only matches `Path.Pident`, so under `HOLLIGHT_USE_MODULE=1` (where the theorem type's path is `Path.Pdot (Pident "Hol_lib", "thm")`) the env-walker finds zero theorems and `search` returns nothing.  The patch checks `Path.last`-style names so both `Pident` and `Pdot` work. |
+
+Note: `update_database.ml` is *not* shipped to `site/` (excluded in the
+Makefile) and is *not* loaded by the worker.  Under `HOLLIGHT_USE_MODULE=1`
+the env walker has to round-trip every candidate name through the
+typechecker, which makes `search` unusably slow in the browser.  Users
+who want it can paste `loadt "update_database.ml";;` themselves.
 
 #### Refreshing a patch after upstream churn
 
