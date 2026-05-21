@@ -155,7 +155,7 @@ let install_file_loader () =
    file directly, and applies a minimal subset of the sed transforms
    in OCaml.  Same external behaviour as `hol.sh`'s `help "type_of"`. *)
 let help_override = {ocaml|
-let _web_read_file fn =
+let web_read_file fn =
   let ic = open_in fn in
   let n = in_channel_length ic in
   let buf = Bytes.create n in
@@ -163,14 +163,14 @@ let _web_read_file fn =
   close_in ic;
   Bytes.unsafe_to_string buf;;
 
-let _web_help_listing () =
-  let s = _web_read_file (Hol_loader.hol_expand_directory "$/Help/index.txt") in
+let web_help_listing () =
+  let s = web_read_file (Hol_loader.hol_expand_directory "$/Help/index.txt") in
   String.split_on_char '\n' s
   |> List.filter (fun l -> l <> "");;
 
 (* Minimal OCaml port of doc-to-help.sed: enough to make the .hlp files
    readable in a terminal pane, not bit-identical to the sed output. *)
-let _web_format_hlp text =
+let web_format_hlp text =
   let lines = String.split_on_char '\n' text in
   let buf = Buffer.create (String.length text) in
   let drop_until_blank = ref false in
@@ -214,7 +214,7 @@ let _web_format_hlp text =
   Buffer.contents buf;;
 
 let help s =
-  let listing = _web_help_listing () in
+  let listing = web_help_listing () in
   let edit_distance s1 s2 =
     let l1 = String.length s1 and l2 = String.length s2 in
     let a = Array.make_matrix (l1 + 1) (l2 + 1) 0 in
@@ -231,7 +231,7 @@ let help s =
   Format.print_flush ();
   if List.mem s listing then begin
     let path = Hol_loader.hol_expand_directory ("$/Help/" ^ s ^ ".hlp") in
-    Format.print_string (_web_format_hlp (_web_read_file path))
+    Format.print_string (web_format_hlp (web_read_file path))
   end else begin
     let scored =
       List.map (fun s' ->

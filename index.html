@@ -158,9 +158,38 @@
 e (EXISTS_TAC `3`);;
 e ARITH_TAC;;
 let mythm = top_thm();;">Goal stack: existential</li>
+      <li data-code="TAUT `(p ==> q) /\ (q ==> r) ==> (p ==> r)`;;">Propositional tautology</li>
+      <li data-code="ARITH_RULE
+ `(a * x + b * y + a * y) EXP 3 + (b * x) EXP 3 +
+  (a * x + b * y + b * x) EXP 3 + (a * y) EXP 3 =
+  (a * x + a * y + b * x) EXP 3 + (b * y) EXP 3 +
+  (a * y + b * y + b * x) EXP 3 + (a * x) EXP 3`;;">A nonlinear arithmetic identity</li>
+      <li data-code="prove
+ (`!n. nsum(1..n) (\i. i) = (n * (n + 1)) DIV 2`,
+  INDUCT_TAC THEN ASM_REWRITE_TAC[NSUM_CLAUSES_NUMSEG] THEN ARITH_TAC);;">Sum 1..n by induction</li>
+      <li data-code="prove
+ (`!n. EVEN(n * (n + 1))`,
+  INDUCT_TAC THEN REWRITE_TAC[MULT_CLAUSES; EVEN_ADD; EVEN_MULT; ARITH] THEN
+  ASM_CASES_TAC `EVEN n` THEN ASM_REWRITE_TAC[]);;">n*(n+1) is even</li>
+      <li data-code="needs &quot;Library/prime.ml&quot;;;
+prove (`prime 17`, CONV_TAC PRIME_CONV);;">loadt + prime test (slow)</li>
+      <li data-code="let golden = new_definition
+  `golden = (1 + sqrt(&5)) / &2`;;">Define a constant</li>
+      <li data-code="let fib = define
+  `fib n = if n = 0 \/ n = 1 then 1
+           else fib(n - 1) + fib(n - 2)`;;
+REWRITE_CONV[fib; ARITH] `fib 5`;;">Recursive function: Fibonacci</li>
+      <li data-code="let tree_INDUCT,tree_RECURSION = define_type
+  &quot;tree = Leaf num | Node tree tree&quot;;;
+let size = define
+  `(size (Leaf n) = 1) /\
+   (size (Node l r) = 1 + size l + size r)`;;
+REWRITE_CONV[size; ARITH]
+  `size (Node (Leaf 1) (Node (Leaf 2) (Leaf 3)))`;;">Define a new type: binary tree</li>
       <li data-code="MULT_SYM;;
 ADD_AC;;">Look up theorems</li>
       <li data-code="search [`x + y = y + x`];;">search</li>
+      <li data-code="help &quot;ARITH_TAC&quot;;;">help</li>
     </ul>
   </div>
 </div>

@@ -34,9 +34,13 @@ JSOO_FLAGS := --toplevel --export export.txt --disable shortvar \
 
 all: test_node.js hol_top_camlp5.js hol_top_worker.js site
 
-# Export list shared by all toplevel bundles
+# Export list shared by all toplevel bundles.  compiler-libs.common +
+# compiler-libs.toplevel pull in Types/Env/Toploop/Longident/Path/Ident/
+# Location, which update_database.ml uses via Obj.magic to enumerate the
+# toplevel environment for `search`.
 export.txt:
 	jsoo_listunits -o $@ stdlib zarith js_of_ocaml-toplevel \
+	  compiler-libs.common compiler-libs.toplevel \
 	  $(HOL)/hol_lib.cmi $(HOL)/bignum.cmi $(HOL)/hol_loader.cmi
 
 # Tier A: tiny program (no REPL) that just runs prove (...).  Useful as a
