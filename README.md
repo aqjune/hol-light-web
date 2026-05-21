@@ -13,23 +13,69 @@ flush — same hook jsoo's own `lwt_toplevel` example uses.
 
 ## What's here
 
+### Hand-written sources
+
+These files are the actual contributions of this directory; they live in
+git and are what you edit:
+
 | File | What it does |
 | --- | --- |
-| `test_node.ml` / `test_node.js` | Smallest possible smoke test: a single `prove` call, no REPL. Uses camlp5 only at *compile* time. |
-| `hol_top_node.ml` / `hol_top_camlp5.js` | Node-side REPL that links camlp5 + `pa_j.cmo` *into* the JS bundle, so backquoted terms parse natively. |
-| `hol_top_worker.ml` / `hol_top_worker.js` | Web Worker bundle.  Posts each Sys_js channel flush back to the page as a `{kind:"out",stream,text}` message; the page renders them live. |
-| `index.html` | REPL UI: dark-theme two-pane layout, `↑/↓` history backed by `localStorage`, `Ctrl+L` clear, `Ctrl+K` reset, ANSI-color rendering of HOL Light's colored printers. Modelled on jsoo's `lwt_toplevel/index.html`. |
-| `hol_top_browser.ml` / `hol_top_browser.js` | (Legacy) main-thread bundle exposing `window.holEval(src)`.  Not built by `make all` anymore but kept for reference / embedding. Build with `make hol_top_browser.js`. |
-| `pcre2_stubs.js` | No-op JS stubs for camlp5's pcre2 dependency (HOL Light never exercises it). |
+| `web_init.ml` | Tiny module linked **first** into the worker bundle.  Installs `Sys_js.set_channel_flusher` on `stdout`/`stderr` before HOL Light's bootstrap runs, so the kernel's "solved at N" lines stream to the page instead of being lost. |
+| `hol_top_worker.ml` | Web Worker entry point.  Mounts an HTTP-backed pseudo-FS (`Sys_js.mount` + sync XHR), opens four `Sys_js` channels (stdout/stderr/sharp/caml) plus their flushers, runs `JsooTop.initialize`, opens `Hol_lib`, installs the colored printers, wires `Hol_loader.file_loader` so `loads/loadt/needs` work, and runs the postMessage loop driven by `index.html`. |
+| `hol_top_node.ml` | Node-side smoke REPL.  Same idea as the worker, minus the postMessage / Sys_js plumbing — handy for testing that the camlp5 + `Hol_lib` link works at all (`node hol_top_camlp5.js`). |
+| `test_node.ml` | Smallest-possible bundle: a single `prove` call with no REPL.  Useful as a minimum-working-example. |
+| `index.html` | REPL UI: dark-theme two-pane layout, `↑/↓` history backed by `localStorage`, `Ctrl+L` clear, `Ctrl+K` reset, ANSI-color rendering of HOL Light's colored printers.  Modelled on jsoo's `lwt_toplevel/index.html`. |
+| `pcre2_stubs.js` | No-op JS stubs for camlp5's pcre2 dependency (HOL Light never exercises it).  Linked into the worker bundle at build time. |
+| `Makefile`, `README.md`, `.gitignore` | Build glue, this file, and what to keep out of git. |
+
+### Generated artefacts
+
+These are produced by `make` and are **not** in git (see `.gitignore`):
+
+| Output | How it's produced |
+| --- | --- |
+| `*.cmo` / `*.cmi` / `*.byte` | `ocamlfind ocamlc` from the `.ml`s above plus the parent tree's `bignum.cmo`, `hol_loader.cmo`, `hol_lib.cmo`, and `pa_j.cmo`. |
+| `export.txt` | `jsoo_listunits` enumeration of the OCaml units the toplevel must keep around at runtime (so `JsooTop` can resolve identifiers in `Hol_lib`, `Stdlib`, `Zarith`, …). |
+| `test_node.js`, `hol_top_camlp5.js`, `hol_top_worker.js` | `js_of_ocaml --toplevel --export export.txt …` over the corresponding `.byte`.  The worker bundle additionally passes `--effects=cps` (see "How streaming works"). |
+| `site/` | `make site` (or `make all`, which now includes it) — `rsync` of the parent HOL Light tree minus excludes, plus `index.html` and `hol_top_worker.js` dropped at the root.  This is the directory you upload to GitHub Pages / Netlify. |
 
 ## Build
 
-```sh
-eval $(opam env --switch .. --set-switch)
-# the parent tree must already have `make hol_lib.cma`
-make            # builds test_node.js, hol_top_camlp5.js, hol_top_worker.js
-make serve      # starts python3 -m http.server on :8000
-```
+Prerequisites:
+
+1. **Parent switch + `hol_lib.cma`.**  The worker bundle links the parent's
+   `.cmo`s directly, so the parent tree's opam switch must exist and
+   `hol_lib.cma` must have been built at least once:
+
+   ```sh
+   cd ..
+   make switch-5
+   eval $(opam env --set-switch)
+   export HOLLIGHT_USE_MODULE=1
+   make            # one-time, in the parent tree
+   cd Web
+   ```
+2. **Extra opam packages** for jsoo (the parent switch doesn't install
+   these by default):
+
+   ```sh
+   opam install -y js_of_ocaml js_of_ocaml-toplevel zarith_stubs_js
+   ```
+
+   `js_of_ocaml` provides the compiler and runtime, `*-toplevel` provides
+   `JsooTop` (the in-bundle REPL machinery), and `zarith_stubs_js` ships
+   the JS implementation of zarith's C primitives.  The other packages
+   this Makefile pulls in (`zarith`, `camlp5`, `fmt`, `pcre2`,
+   `camlp-streams`) come along with `make switch-5` and the parent build.
+
+Then, from this directory:
+
+| Command | What it does |
+| --- | --- |
+| `make` / `make all` | Builds `test_node.js`, `hol_top_camlp5.js`, `hol_top_worker.js`, **and** mirrors the parent tree into `./site/` (see "Deploy"). |
+| `make serve` | Builds `site/` (so `loadt` resolves against the deployed tree) and starts `python3 -m http.server -d site 8000`.  Open <http://localhost:8000/> to use the demo. |
+| `make site` | Just the `site/` step — already covered by `make all`, but useful if you only want the deploy directory. |
+| `make clean` | Removes build artefacts (`*.cmo`, `*.cmi`, `*.byte`, `export.txt`), the generated JS bundles, and `site/`. |
 
 ## Try it
 
@@ -37,12 +83,83 @@ make serve      # starts python3 -m http.server on :8000
 node hol_top_camlp5.js          # ~60s startup; runs three smoke proofs
 ```
 
+This is also what CI runs — see `.github/workflows/ci.yml`, which builds
+the bundle from a fresh switch on every PR/push and asserts the three
+smoke phrases produce their expected output under Node.js.
+
 For the browser demo, open `http://localhost:8000/` after `make serve`.
 
 The page boots the Worker immediately and shows the kernel's bootstrap output
 (the `0..0..1..solved at N` lines) live in the terminal pane.  Once `* HOL-Light
 syntax in effect *` and the printer-install lines appear, the input is enabled
 and you can type phrases.
+
+## Deploy
+
+`make site` produces a self-contained `site/` directory you can upload to
+GitHub Pages, Netlify, or any other static host:
+
+```
+site/
+├── index.html, hol_top_worker.js                   (Web/ outputs)
+├── 100/, Library/, Multivariate/, Probability/, …  (HOL Light .ml sources)
+├── *.ml                                            (kernel sources)
+└── …
+```
+
+The layout mirrors the parent HOL Light tree, so `loadt "Library/words.ml"`
+resolves to `<origin>/Library/words.ml` over plain HTTP — see the next
+section.
+
+`make site` excludes the opam switch, build artefacts (`*.cmo`, `*.byte`,
+checkpoints, native binaries), and a few sub-projects that aren't needed at
+proof-load time (`TacticTrace`, `UnitTests`, `Proofrecording`, `ProofTrace`,
+`Minisat`, `Cadical`, `mcp`, `pa_j/`, `update_database/`, `*.ckpt`).
+Everything else from the parent tree comes along.
+
+Total deploy size: ~70 MB.  ~16 MB of that is `hol_top_worker.js` (compresses
+to ~3 MB on the wire under brotli/gzip).
+
+## How `loads`/`loadt`/`needs` work
+
+HOL Light's `loadt "Library/words.ml"` (and `loads`, `needs`) read `.ml` files
+off disk and feed them through the toplevel.  Under jsoo there is no disk —
+so we synthesize one out of `Sys_js.mount` plus synchronous XHR.
+
+The wiring, all in `hol_top_worker.ml`:
+
+1. `Sys_js.mount ~path:"/" hol_fs_handler` — when the OCaml runtime tries
+   `Sys.file_exists "/Library/words.ml"` or `open_in "/Library/words.ml"`
+   and the file isn't already in the in-memory FS, jsoo calls
+   `hol_fs_handler` with the path, which runs a synchronous
+   `XMLHttpRequest GET /Library/words.ml`.  Sync XHR is allowed inside Web
+   Workers (only deprecated on the main thread), so `loadt`'s assumption
+   that file reads are synchronous is satisfiable.  The fetched bytes get
+   cached in the in-memory FS, so `Digest.file` works (HOL Light's
+   `loaded_files` de-dup) and re-`loadt` is a no-op.
+2. `Hol_loader.hol_dir := "/"` — HOL Light's default `load_path` is
+   `["."; "$"]`, with `$` substituted by `!hol_dir`.  Pointing it at `/`
+   means `loadt "Library/words.ml"` resolves to `/Library/words.ml`, which
+   our handler then fetches over HTTP.
+3. `Hol_loader.file_loader := (fun fname -> ...)` — the worker installs a
+   custom loader that reads the (now cached) file and calls
+   `JsooTop.use Format.std_formatter` on its contents.  That runs each
+   `;;`-terminated phrase through the same toplevel as the REPL, so
+   camlp5's backquote syntax extension is in effect for loaded files.
+
+Net effect: with the deployed `site/` layout, you can paste
+
+```ocaml
+loadt "Library/words.ml";;
+```
+
+into the REPL and the worker will fetch the source from `<origin>/Library/words.ml`,
+evaluate it phrase by phrase with output streaming live, and remember it so
+subsequent `needs`/`loadt` calls short-circuit.
+
+(Limits: only `.ml` sources work — `loadt "foo.cma"` would need
+`Dynlink`-style support, not yet wired up.  And anything `loadt`'s file
+ends up referencing must also be reachable under the deploy root.)
 
 ## How the camlp5 trick works
 
@@ -108,16 +225,15 @@ responsive even while the worker is busy.
   (vs ~33 s native bytecode).  After that, individual proofs run at
   jsoo speed.  A `make-checkpoint`-style serialized image would skip
   the bootstrap; `Marshal` works under jsoo so that is feasible.
-- **No `Unix`, no filesystem.**  Anything that calls `Sys.getcwd`,
-  `loadt`, or reads files from disk needs to be backed by jsoo's
-  in-memory filesystem (`Sys_js.create_file`).  HOL Light's `loadt`
-  paths assume `Sys.file_exists`, which jsoo supports for files
-  registered through `Sys_js.create_file`.
-- **`Library/words.ml` and other extra modules** are NOT in the bundle.
-  Only what's already statically linked into `hol_lib.cma` is available.
-  Loading them at runtime requires `Dynlink`-on-jsoo (works for
-  bytecode `.cma`s, but each extra `.cma` needs to be served and fed in
-  through `Sys_js.create_file`).
+- **No `Unix`.**  Filesystem reads (`Sys.file_exists`, `open_in`,
+  `loadt`) are served by `Sys_js.mount` + sync XHR (see "How
+  loads/loadt/needs work" above), so plain `.ml` loads work.  But
+  anything that needs `Unix` proper — `fork`, sockets, file metadata
+  beyond `Sys.file_exists` — won't.
+- **`.cma` loading is not wired up.**  Only `.ml` sources can be loaded
+  at runtime.  Loading additional `.cma`s would require `Dynlink`-on-jsoo;
+  for now the only way to get extra modules into the bundle is to link
+  them into `hol_lib.cma` ahead of time.
 - **Memory.**  `node --max-old-space-size=8192 …` is recommended for
   bigger proofs; the default 4 GiB is sometimes tight.
 - **pcre2 stubs** are shims; if camlp5 ever lexes an OCaml `{%foo|…|}`

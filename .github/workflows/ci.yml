@@ -1,0 +1,86 @@
+name: CI
+
+# Smoke test: build the node-side jsoo bundle (`hol_top_camlp5.js`) and run
+# it under Node.js.  This proves the camlp5 + Hol_lib link still works under
+# js_of_ocaml — the same bundle the browser worker is derived from, minus
+# the postMessage / Web-Worker plumbing.
+#
+# This workflow lives under Web/ on purpose: when this directory is split
+# out into its own `hol-light-web` repo, this file becomes
+# `.github/workflows/ci.yml` at the repo root and runs unmodified.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches: [master, main]
+
+jobs:
+  node-smoke:
+    runs-on: ubuntu-22.04
+    name: Node.js smoke test (OCaml 5.4 + jsoo 6.x)
+
+    steps:
+      - name: Install opam
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y opam
+          opam init --disable-sandboxing --bare -n
+
+      # The Web/ Makefile expects the parent HOL Light tree at `..`.
+      # Check out the parent first, then this repo into `parent/Web` so
+      # the relative path matches when this workflow runs from the
+      # standalone hol-light-web repo OR from the in-tree path.
+      - name: Checkout parent HOL Light
+        uses: actions/checkout@v6
+        with:
+          repository: jrh13/hol-light
+          path: parent
+
+      - name: Checkout this repo (Web/)
+        uses: actions/checkout@v6
+        with:
+          path: parent/Web
+
+      - name: Build parent (make switch-5 + hol_lib.cma)
+        run: |
+          set -xe
+          cd parent
+          make switch-5
+          eval $(opam env)
+          # Web/ links the parent's bignum.cmo / hol_loader.cmo / hol_lib.cmo /
+          # pa_j.cmo.  HOLLIGHT_USE_MODULE=1 is required: without it the
+          # `hol_lib.cma` rule won't fire end-to-end on a fresh switch.
+          export HOLLIGHT_USE_MODULE=1
+          make pa_j.cmo bignum.cmo hol_loader.cmo hol_lib.cma
+
+      - name: Install jsoo packages
+        run: |
+          set -xe
+          eval $(opam env --switch=${{ github.workspace }}/parent --set-switch)
+          opam install -y js_of_ocaml js_of_ocaml-toplevel zarith_stubs_js
+
+      - name: Build the node bundle
+        run: |
+          set -xe
+          eval $(opam env --switch=${{ github.workspace }}/parent --set-switch)
+          cd parent/Web
+          make hol_top_camlp5.js
+
+      - name: Run node smoke test
+        run: |
+          set -xe
+          cd parent/Web
+          # The bundle boots HOL Light under jsoo (~2 min), then runs three
+          # smoke phrases: a backquote term, a prove(..., ARITH_TAC), and a
+          # g/e/top_thm round trip.  We capture the output and assert each
+          # stage produced its expected line.
+          node hol_top_camlp5.js 2>&1 | tee log.txt
+          grep -F 'Test 1: backquote syntax for terms'  log.txt
+          grep -F 'Test 2: prove with ARITH_TAC'        log.txt
+          grep -F 'Test 3: interactive goal stack'      log.txt
+          grep -F 'val mythm : Hol_lib.thm = <abstr>'   log.txt
+          # No uncaught exception or `Error:` line should have escaped the
+          # toplevel — those would indicate a regression in the link path.
+          ! grep -E '^(Exception|Error):' log.txt

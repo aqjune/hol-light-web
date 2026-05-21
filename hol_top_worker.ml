@@ -32,6 +32,49 @@ let post_tag tag =
    convention used by jsoo's own lwt_toplevel example. *)
 let () = Sys_js.mount ~path:"/dev/" (fun ~prefix:_ ~path:_ -> None)
 
+(* ---- 1b. HOL filesystem: synchronous fetch from same origin.
+
+   `make site` deploys the parent HOL Light tree at the site root, so a
+   request for "/Library/words.ml" resolves to <origin>/Library/words.ml.
+   Sync XHR is allowed inside Web Workers (it's only forbidden on the main
+   thread), so loadt's expectation of synchronous Sys.file_exists/open_in
+   is satisfiable.
+
+   Once a file is fetched, jsoo caches it in its in-memory FS — so
+   Digest.file works (loaded_files de-dup) and re-loadt is a no-op. *)
+
+let http_fetch_sync url =
+  (* Synchronous XHR via Js.Unsafe so we don't have to pull in the jsoo
+     PPX just for ##.  Sync XHR is allowed in workers — it's only
+     deprecated on the main thread. *)
+  let xhr_ctor = Js.Unsafe.get Js.Unsafe.global (Js.string "XMLHttpRequest") in
+  let xhr = Js.Unsafe.new_obj xhr_ctor [||] in
+  let call m args =
+    Js.Unsafe.meth_call xhr m (Array.map Js.Unsafe.inject args) in
+  let _ : unit = call "open"
+    [| Js.Unsafe.inject (Js.string "GET");
+       Js.Unsafe.inject (Js.string url);
+       Js.Unsafe.inject Js._false |] in
+  (try
+     let _ : unit = call "send" [||] in ()
+   with _ -> ());
+  let status : int = Js.Unsafe.get xhr (Js.string "status") in
+  if status = 200 then
+    let resp : Js.js_string Js.t Js.opt =
+      Js.Unsafe.get xhr (Js.string "responseText") in
+    Js.Opt.case resp (fun () -> None) (fun s -> Some (Js.to_string s))
+  else None
+
+let hol_fs_handler ~prefix:_ ~path =
+  (* path is the part after the mount prefix, e.g. "Library/words.ml". *)
+  http_fetch_sync ("/" ^ path)
+
+(* Mount the deploy root so Sys.file_exists/open_in for "/Library/foo.ml"
+   triggers an XHR fetch.  The HOL Light load_path includes "$" which we
+   point at "/" below, so loadt "Library/foo.ml" will scan ["."; "/"] and
+   find the file. *)
+let () = Sys_js.mount ~path:"/" hol_fs_handler
+
 let sharp_chan = open_out "/dev/sharp"
 let caml_chan  = open_out "/dev/caml"
 let sharp_ppf  = Format.formatter_of_out_channel sharp_chan
@@ -76,9 +119,34 @@ let install_printers () =
     (fun name -> exec (Printf.sprintf "#install_printer %s;;" name))
     printers
 
+(* Wire HOL Light's [file_loader] hook to the jsoo toplevel so loads/loadt/
+   needs evaluate fetched .ml files through the same execute path the REPL
+   uses.  This goes through the toplevel rather than our own parser, so
+   camlp5's backquote syntax extension is in effect for loaded files. *)
+let bootstrap_loader =
+  String.concat "\n" [
+    (* Make $ resolve to the deploy root.  The default load_path is
+       ["."; "$"], so loadt "Library/foo.ml" will try "./Library/foo.ml"
+       and "/Library/foo.ml" — the second one hits our XHR mount. *)
+    "Hol_loader.hol_dir := \"/\";;";
+    (* Read a .ml file off the pseudo-FS and feed it to JsooTop.use, which
+       runs each ;;-terminated phrase through the toplevel just like the
+       REPL.  Returns true on success, false on error (mirrors the
+       Toploop.use_file contract). *)
+    "Hol_loader.file_loader := (fun fname ->";
+    "  let ic = open_in fname in";
+    "  let n = in_channel_length ic in";
+    "  let buf = Bytes.create n in";
+    "  really_input ic buf 0 n;";
+    "  close_in ic;";
+    "  Js_of_ocaml_toplevel.JsooTop.use Format.std_formatter";
+    "    (Bytes.unsafe_to_string buf));;"
+  ]
+
 let () =
   exec "open Hol_lib;;";
   install_printers ();
+  exec bootstrap_loader;
   post_tag "ready"
 
 (* ---- 4. Main loop. *)
