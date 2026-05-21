@@ -168,13 +168,12 @@ let mythm = top_thm();;">Goal stack: existential</li>
  (`forall n. nsum(1..n) (\i. i) = (n * (n + 1)) DIV 2`,
   INDUCT_TAC THEN ASM_REWRITE_TAC[NSUM_CLAUSES_NUMSEG] THEN ARITH_TAC);;">Sum 1..n by induction</li>
       <li data-code="needs &quot;Library/prime.ml&quot;;;
-prove (`prime 17`, CONV_TAC PRIME_CONV);;">loadt + prime test (slow)</li>
+prove (`coprime(15,28)`, CONV_TAC COPRIME_CONV);;">loadt + coprime test</li>
       <li data-code="let golden = new_definition
-  `golden = (1 + sqrt(&5)) / &2`;;">Define a constant</li>
+  `golden = (&1 + sqrt(&5)) / &2`;;">Define a constant</li>
       <li data-code="let fib = define
   `fib n = if n = 0 \/ n = 1 then 1
-           else fib(n - 1) + fib(n - 2)`;;
-REWRITE_CONV[fib; ARITH] `fib 5`;;">Recursive function: Fibonacci</li>
+           else fib(n - 1) + fib(n - 2)`;;">Recursive function: Fibonacci</li>
       <li data-code="let tree_INDUCT,tree_RECURSION = define_type
   &quot;tree = Leaf num | Node tree tree&quot;;;
 let size = define
@@ -185,6 +184,12 @@ REWRITE_CONV[size; ARITH]
       <li data-code="search [`x + y = y + x`];;">search</li>
       <li data-code="help &quot;ARITH_TAC&quot;;;">help</li>
     </ul>
+    <h4>Heads up</h4>
+    <p>There is no interrupt in this interface — a runaway proof
+    (e.g. a non-terminating <code>REWRITE_CONV</code>) cannot be
+    cancelled.  <kbd>Ctrl+K</kbd> wipes the toplevel and re-boots
+    the kernel from scratch (~1–2 min), so use it only as a last
+    resort.</p>
   </div>
 </div>
 <div id="status-bar">Spawning Web Worker…</div>

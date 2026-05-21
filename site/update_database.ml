@@ -94,11 +94,12 @@ let string_of_longident lid =
   String.concat "." (Longident.flatten lid)
 
 let all_theorems () =
-  let _ = Ocaml_typing.exec ("unset_jrh_lexer;;") in
-  (* Re-enable jrh_lexer no matter how the walk exits, so a stray
-     exception doesn't leave camlp5's HOL syntax extension off — that
-     would cause every subsequent uppercase identifier (ARITH_TAC,
-     MESON_TAC, ...) to be parsed as an OCaml constructor and fail. *)
+  (* Keep jrh_lexer ON during the walk: with [HOLLIGHT_USE_MODULE=1]
+     every theorem path is `Hol_lib.NAME_LIKE_THIS`, and only jrh_lexer's
+     reclassification of uppercase-with-underscores idents as LIDENTs
+     lets that parse as a value path rather than a constructor.  We
+     still wrap in [Fun.protect] so a stray exception in `eval` never
+     leaves the lexer flag in an unexpected state. *)
   Fun.protect
     ~finally:(fun () -> ignore (Ocaml_typing.exec "set_jrh_lexer;;"))
     (fun () ->
