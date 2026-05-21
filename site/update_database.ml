@@ -39,11 +39,14 @@ let exec s = (ignore o Toploop.execute_phrase false Format.std_formatter
 
 (* Evaluate any OCaml expression given as a string. *)
 
+(* Always go through the typechecker via [buf__]: it respects [open]s,
+   so bare names made visible by `open Hol_lib` (e.g. `vector`) resolve
+   correctly under HOLLIGHT_USE_MODULE=1.  The plain [Toploop.getvalue]
+   path only sees names that were `let`-bound at the toplevel, which
+   misses every value defined inside the [Hol_lib] compilation unit. *)
 let eval n =
-  if String.contains n '.' then begin
-    exec ("let buf__ = ( " ^ n ^ " );;");
-    Obj.magic (Toploop.getvalue "buf__")
-  end else Obj.magic (Toploop.getvalue n)
+  exec ("let buf__ = ( " ^ n ^ " );;");
+  Obj.magic (Toploop.getvalue "buf__")
 
 (* Register all theorems added since the last update. *)
 end

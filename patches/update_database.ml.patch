@@ -1,5 +1,5 @@
---- a/update_database.ml
-+++ b/update_database.ml
+--- a/update_database.ml	2026-05-21 05:30:15.578173454 +0000
++++ b/update_database.ml	2026-05-21 06:00:38.187856648 +0000
 @@ -16,12 +16,20 @@
  
  (* If the given type is simple return its name, otherwise None. *)
@@ -23,7 +23,26 @@
    | _ -> None;;
  
  (* Execute any OCaml expression given as a string. *)
-@@ -49,8 +57,14 @@
+@@ -31,11 +39,14 @@
+ 
+ (* Evaluate any OCaml expression given as a string. *)
+ 
++(* Always go through the typechecker via [buf__]: it respects [open]s,
++   so bare names made visible by `open Hol_lib` (e.g. `vector`) resolve
++   correctly under HOLLIGHT_USE_MODULE=1.  The plain [Toploop.getvalue]
++   path only sees names that were `let`-bound at the toplevel, which
++   misses every value defined inside the [Hol_lib] compilation unit. *)
+ let eval n =
+-  if String.contains n '.' then begin
+-    exec ("let buf__ = ( " ^ n ^ " );;");
+-    Obj.magic (Toploop.getvalue "buf__")
+-  end else Obj.magic (Toploop.getvalue n)
++  exec ("let buf__ = ( " ^ n ^ " );;");
++  Obj.magic (Toploop.getvalue "buf__")
+ 
+ (* Register all theorems added since the last update. *)
+ end
+@@ -49,8 +60,14 @@
      None -> Longident.Lident id
    | Some li -> Longident.Ldot({ txt = li; loc = Location.none }, idloc)
  
@@ -39,7 +58,7 @@
      (lid_cons lidopt s)::acc else acc
  
  let it_mod_1 lidopt s p md acc = (lid_cons lidopt s)::acc
-@@ -80,13 +94,19 @@
+@@ -80,13 +97,19 @@
    String.concat "." (Longident.flatten lid)
  
  let all_theorems () =
