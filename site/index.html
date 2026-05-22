@@ -270,8 +270,8 @@
 <body>
 <div id="wrapper">
   <div id="term-pane">
+    <div id="watermark">HOL&nbsp;Light in a web browser</div>
     <div id="term">
-      <div id="watermark">HOL&nbsp;Light</div>
       <pre id="output"></pre>
       <div id="prompt-row">
         <span id="prompt">#</span>
@@ -279,6 +279,7 @@
       </div>
     </div>
     <div id="term-controls">
+      <button id="btn-save" type="button" title="Save inputs as hol-light-web.ml" aria-label="Save inputs">⤓</button>
       <button id="btn-settings" type="button" title="Settings" aria-label="Settings">⚙</button>
       <button id="btn-help" type="button" title="About" aria-label="About">?</button>
     </div>
@@ -369,17 +370,10 @@ REWRITE_CONV[size; ARITH]
       Max output lines:
       <input id="cfg-max-lines" type="number" min="100" max="100000" step="100">
     </label>
-    <p class="hint">When the output exceeds this, the oldest lines are
-      trimmed in chunks.  ANSI colors on still-visible lines are preserved.</p>
     <fieldset>
       <legend>Color mode</legend>
       <label><input type="radio" name="cfg-theme" value="dark">Dark</label>
       <label><input type="radio" name="cfg-theme" value="light">Light</label>
-      <p class="hint">The page chrome is plain HTML/CSS, so theming is
-        independent of HOL Light.  Only the OCaml kernel runs through
-        js_of_ocaml — see About.  ANSI colors emitted by HOL Light's
-        printers (types, theorems) keep their fixed palette in either
-        theme; they're tuned for dark backgrounds.</p>
     </fieldset>
     <menu>
       <button value="cancel">Cancel</button>
@@ -604,6 +598,12 @@ REWRITE_CONV[size; ARITH]
     term.scrollTop = term.scrollHeight;
   }
 
+  // Running log of every phrase submitted this session, used by the Save
+  // button to dump a self-contained .ml file.  Independent of the output
+  // pane (which can be trimmed) and of localStorage history (which spans
+  // sessions and includes never-submitted edits).
+  const submittedInputs = [];
+
   function execute() {
     if (!ready || busy) return;
     let code = userinput.value;
@@ -612,6 +612,7 @@ REWRITE_CONV[size; ARITH]
     const trimmed = code.trimEnd();
     if (!trimmed.endsWith(';;')) code = trimmed + ';;';
     History.push(userinput.value);
+    submittedInputs.push(code);
     // Echo input as a "sharp" line so the look matches the OCaml toplevel.
     append('sharp', userinput.value + '\n');
     userinput.value = '';
@@ -688,6 +689,20 @@ REWRITE_CONV[size; ARITH]
   });
   document.getElementById('btn-help').addEventListener('click', () => {
     dlgHelp.showModal();
+  });
+  document.getElementById('btn-save').addEventListener('click', () => {
+    const text = submittedInputs.length
+      ? submittedInputs.join('\n') + '\n'
+      : '';
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'hol-light-web.ml';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   });
 
   // -------- Keymap (mirrors lwt_toplevel) --------
