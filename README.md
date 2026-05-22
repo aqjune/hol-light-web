@@ -92,6 +92,14 @@ without building anything (see "Run it without building" above).
 
 ## Build
 
+This directory must live inside a checkout of
+[jrh13/hol-light](https://github.com/jrh13/hol-light) — ideally cloned
+as `hol-light-web/` (matching the origin repo
+[aqjune/hol-light-web](https://github.com/aqjune/hol-light-web)).  The
+Makefile links the parent tree's `bignum.cmo`, `hol_loader.cmo`,
+`hol_lib.cmo`, and `pa_j.cmo` directly (see `HOL := ..` in `Makefile`),
+and `make site` rsyncs the parent's `.ml` sources into `site/`.
+
 Prerequisites:
 
 1. **Parent switch + `hol_lib.cma`.**  The worker bundle links the parent's
