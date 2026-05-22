@@ -84,14 +84,19 @@ let hol_fs_handler ~prefix:_ ~path =
    so loadt's expansion `$/foo.ml` -> `/hol/foo.ml` lands on our device. *)
 let () = Sys_js.mount ~path:"/hol/" hol_fs_handler
 
-let sharp_chan = open_out "/dev/sharp"
 let caml_chan  = open_out "/dev/caml"
-let sharp_ppf  = Format.formatter_of_out_channel sharp_chan
 let caml_ppf   = Format.formatter_of_out_channel caml_chan
 
 let () =
-  Sys_js.set_channel_flusher sharp_chan (post_chunk "sharp");
   Sys_js.set_channel_flusher caml_chan  (post_chunk "caml")
+
+(* Swallow the toplevel's per-phrase echo of source.  The page already
+   echoes the user's full submission as one "sharp" line, so passing
+   pp_code:sharp_ppf would re-print every phrase from the 2nd onward
+   (each as its own "# …" line, since the page's CSS adds the prompt
+   prefix), making multi-statement inputs look like the user typed
+   each phrase separately. *)
+let null_ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
 
 (* ---- 2. Toplevel init. *)
 
@@ -105,13 +110,12 @@ let exec src =
   (try
      Js_of_ocaml_toplevel.JsooTop.execute
        true
-       ~pp_code:sharp_ppf
+       ~pp_code:null_ppf
        ~highlight_location:(fun _ -> ())
        caml_ppf
        src
    with e ->
      Format.fprintf caml_ppf "Exception: %s@." (Printexc.to_string e));
-  Format.pp_print_flush sharp_ppf ();
   Format.pp_print_flush caml_ppf ()
 
 (* ---- 3. HOL Light kernel + printer install.  Each #install_printer is its
