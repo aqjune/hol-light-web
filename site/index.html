@@ -279,7 +279,7 @@
       </div>
     </div>
     <div id="term-controls">
-      <button id="btn-save" type="button" title="Save inputs as hol-light-web.ml" aria-label="Save inputs">⤓</button>
+      <button id="btn-save" type="button" title="Save inputs as hol-light-web.ml" aria-label="Save inputs">💾</button>
       <button id="btn-settings" type="button" title="Settings" aria-label="Settings">⚙</button>
       <button id="btn-help" type="button" title="About" aria-label="About">?</button>
     </div>
@@ -328,6 +328,11 @@ let mythm = top_thm();;">Goal stack: existential</li>
   INDUCT_TAC THEN ASM_REWRITE_TAC[NSUM_CLAUSES_NUMSEG] THEN ARITH_TAC);;">Sum 1..n by induction</li>
       <li data-code="needs &quot;Library/prime.ml&quot;;;
 prove (`coprime(15,28)`, CONV_TAC COPRIME_CONV);;">loadt + coprime test</li>
+      <li data-code="loadt &quot;Library/words.ml&quot;;;
+let bv_add_mul_distrib = prove
+ (`word_mul (x:(N)word) (word_add y z) =
+   word_add (word_mul x y) (word_mul x z)`,
+  CONV_TAC WORD_RULE);;">Distributivity of bit-vector add and mul</li>
       <li data-code="let golden = new_definition
   `golden = (&1 + sqrt(&5)) / &2`;;">Define a constant</li>
       <li data-code="let fib = define
@@ -691,9 +696,9 @@ REWRITE_CONV[size; ARITH]
     dlgHelp.showModal();
   });
   document.getElementById('btn-save').addEventListener('click', () => {
-    const text = submittedInputs.length
-      ? submittedInputs.join('\n') + '\n'
-      : '';
+    const text = submittedInputs
+      .map((src, i) => '(***** Input ' + (i + 1) + ' *****)\n' + src + '\n')
+      .join('');
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
