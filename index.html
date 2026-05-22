@@ -123,12 +123,16 @@
     font-size: 13px; line-height: 1.25;
     white-space: pre-wrap; word-break: break-word;
   }
+  /* Render input echoes as a block so the highlight fills the full line(s)
+     instead of hugging just the typed characters.  Padding extends the tint
+     to the terminal's left/right gutters; a small vertical margin separates
+     the block from the surrounding output bands. */
   #output .sharp  {
+    display: block;
     color: var(--fg-input); font-weight: bold;
     background: var(--bg-input-echo);
-    /* Stretch the highlight to the viewport edges so multi-line inputs
-       read as one tinted block instead of a ragged box hugging each line. */
-    box-shadow: 20px 0 0 var(--bg-input-echo), -20px 0 0 var(--bg-input-echo);
+    margin: 2px -20px;
+    padding: 1px 20px;
   }
   #output .sharp::before { content: "# "; color: var(--fg-dim); font-weight: normal; }
   #output .caml   { color: var(--caml); }
@@ -626,8 +630,10 @@ REWRITE_CONV[size; ARITH]
     if (!trimmed.endsWith(';;')) code = trimmed + ';;';
     History.push(userinput.value);
     submittedInputs.push(code);
-    // Echo input as a "sharp" line so the look matches the OCaml toplevel.
-    append('sharp', userinput.value + '\n');
+    // Echo input as a "sharp" block so the look matches the OCaml toplevel.
+    // The .sharp span is display:block, so we don't append a trailing '\n' —
+    // the block already starts a new line of its own.
+    append('sharp', userinput.value);
     userinput.value = '';
     autoresize();
     busy = true;
